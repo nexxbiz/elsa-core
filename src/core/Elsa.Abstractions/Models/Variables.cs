@@ -2,65 +2,54 @@ using System.Collections.Generic;
 
 namespace Elsa.Models
 {
-    public class Variables : Dictionary<string, Variable>
+    public class Variables
     {
-        public static readonly Variables Empty = new Variables();
-
         public Variables()
         {
+            Data = new Dictionary<string, object?>();
         }
 
-        public Variables(Variables other) : this((IEnumerable<KeyValuePair<string, Variable>>) other)
+        public Variables(Variables other) : this(new Dictionary<string, object?>(other.Data))
         {
         }
 
-        public Variables(IEnumerable<KeyValuePair<string, Variable>> dictionary)
+        public Variables(IDictionary<string, object?> data)
         {
-            foreach (var item in dictionary)
-                this[item.Key] = item.Value;
-        }
-        
-        public Variables(IEnumerable<KeyValuePair<string, object>> dictionary)
-        {
-            foreach (var item in dictionary)
-                SetVariable(item.Key, item.Value);
+            Data = data;
         }
 
-        public object GetVariable(string name)
+        public IDictionary<string, object?> Data { get; }
+
+        public object? Get(string name) => Has(name) ? Data[name] : default;
+        public T? Get<T>(string name) => !Has(name) ? default : Get(name).ConvertTo<T>();
+
+        public Variables Set(string name, object? value)
         {
-            return ContainsKey(name) ? this[name].Value : default;
+            Data[name] = value;
+            return this;
         }
 
-        public T GetVariable<T>(string name)
+        /// <summary>
+        /// Removes a variable of the specified name if it is present.
+        /// </summary>
+        /// <param name="name">The variable name</param>
+        /// <returns>A reference to this same <see cref="Variables"/> instance, so calls may be chained.</returns>
+        public Variables Remove(string name)
         {
-            object value = GetVariable(name);
-            return (value != default) 
-                ? (T)System.Convert.ChangeType(value, typeof(T))
-                : default(T);
+            Data.Remove(name);
+            return this;
         }
 
-        public Variable SetVariable(string name, object value)
+        /// <summary>
+        /// Removes all of the variables from the current instance, clearing it.
+        /// </summary>
+        /// <returns>A reference to this same <see cref="Variables"/> instance, so calls may be chained.</returns>
+        public Variables RemoveAll()
         {
-            return this[name] = new Variable(value);
+            Data.Clear();
+            return this;
         }
 
-        public Variable SetVariable(string name, Variable variable)
-        {
-            return SetVariable(name, variable.Value);
-        }
-
-        public void SetVariables(Variables variables) =>
-            SetVariables((IEnumerable<KeyValuePair<string, Variable>>) variables);
-
-        public void SetVariables(IEnumerable<KeyValuePair<string, Variable>> variables)
-        {
-            foreach (var variable in variables)
-                SetVariable(variable.Key, variable.Value);
-        }
-
-        public bool HasVariable(string name)
-        {
-            return ContainsKey(name);
-        }
+        public bool Has(string name) => Data.ContainsKey(name);
     }
 }
