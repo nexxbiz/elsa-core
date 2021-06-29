@@ -4,8 +4,8 @@ using System.Threading;
 using System.Threading.Tasks;
 using Elsa.Activities.AzureServiceBus.Models;
 using Elsa.Activities.AzureServiceBus.Options;
-using Elsa.Bookmarks;
-using Elsa.Dispatch;
+using Elsa.Services;
+using Elsa.Services.Bookmarks;
 using Microsoft.Azure.ServiceBus;
 using Microsoft.Azure.ServiceBus.Core;
 using Microsoft.Extensions.Logging;
@@ -16,21 +16,21 @@ namespace Elsa.Activities.AzureServiceBus.Services
     public abstract class WorkerBase : IAsyncDisposable
     {
         // TODO: Design multi-tenancy. 
-        private const string TenantId = default;
+        private const string? TenantId = default;
 
-        private readonly IWorkflowDispatcher _workflowDispatcher;
+        private readonly Scoped<IWorkflowLaunchpad> _workflowLaunchpad;
         private readonly Func<IReceiverClient, Task> _disposeReceiverAction;
         private readonly ILogger _logger;
 
         protected WorkerBase(
             IReceiverClient receiverClient,
-            IWorkflowDispatcher workflowDispatcher,
+            Scoped<IWorkflowLaunchpad> workflowLaunchpad,
             IOptions<AzureServiceBusOptions> options,
             Func<IReceiverClient, Task> disposeReceiverAction, 
             ILogger logger)
         {
             ReceiverClient = receiverClient;
-            _workflowDispatcher = workflowDispatcher;
+            _workflowLaunchpad = workflowLaunchpad;
             _disposeReceiverAction = disposeReceiverAction;
             _logger = logger;
             
@@ -73,7 +73,9 @@ namespace Elsa.Activities.AzureServiceBus.Services
 
             var bookmark = CreateBookmark(message);
             var trigger = CreateTrigger(message);
-            await _workflowDispatcher.DispatchAsync(new TriggerWorkflowsRequest(ActivityType, bookmark, trigger, model, correlationId, TenantId: TenantId), cancellationToken);
+            var launchContext = new CollectWorkflowsContext(ActivityType, bookmark, trigger, correlationId);
+            
+            await _workflowLaunchpad.UseServiceAsync(service => service.CollectAndDispatchWorkflowsAsync(launchContext, model, cancellationToken));
         }
 
         private Task ExceptionReceivedHandler(ExceptionReceivedEventArgs e)
@@ -98,7 +100,9 @@ namespace Elsa.Activities.AzureServiceBus.Services
         {
             _logger.LogDebug("Message received with ID {MessageId}", message.MessageId);
             await TriggerWorkflowsAsync(message, CancellationToken.None);
-            await ReceiverClient.CompleteAsync(message.SystemProperties.LockToken);
+
+            if (!ReceiverClient.IsClosedOrClosing)
+                await ReceiverClient.CompleteAsync(message.SystemProperties.LockToken);
         }
     }
 }

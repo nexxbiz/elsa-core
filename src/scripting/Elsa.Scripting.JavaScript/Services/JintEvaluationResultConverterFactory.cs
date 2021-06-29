@@ -11,12 +11,10 @@ namespace Elsa.Scripting.JavaScript.Services
 
         public IConvertsJintEvaluationResult GetConverter()
         {
-            IConvertsJintEvaluationResult service;
-
             // Builds a chain-of-responsibility service
             // Note:  The order in which these classes execute is bottom-to-top
 
-            service = GetConvertChangeTypeService();
+            var service = GetConvertChangeTypeService();
             service = GetPlainObjectService(service);
             service = GetEnumerableConvertingService(service);
             service = GetExpandoConvertingService(service);
@@ -26,20 +24,17 @@ namespace Elsa.Scripting.JavaScript.Services
             return service;
         }
 
-        static IConvertsJintEvaluationResult GetConvertChangeTypeService() => new ConvertChangeTypeResultConverter();
+        private static IConvertsJintEvaluationResult GetConvertChangeTypeService() => new ConvertChangeTypeResultConverter();
+        private static IConvertsJintEvaluationResult GetPlainObjectService(IConvertsJintEvaluationResult wrapped) => new PlainObjectResultConverter(wrapped);
+        private IConvertsJintEvaluationResult GetEnumerableConvertingService(IConvertsJintEvaluationResult wrapped) => new EnumerableResultConverter(wrapped);
 
-        static IConvertsJintEvaluationResult GetPlainObjectService(IConvertsJintEvaluationResult wrapped) => new PlainObjectResultConverter(wrapped);
-
-        IConvertsJintEvaluationResult GetEnumerableConvertingService(IConvertsJintEvaluationResult wrapped) => new EnumerableResultConverter(wrapped);
-
-        IConvertsJintEvaluationResult GetExpandoConvertingService(IConvertsJintEvaluationResult wrapped)
+        private IConvertsJintEvaluationResult GetExpandoConvertingService(IConvertsJintEvaluationResult wrapped)
         {
             var enumerableConverter = _serviceProvider.GetRequiredService<IConvertsEnumerableToObject>();
             return new ExpandoObjectToDictionaryWhenNoDesiredTypeResultConverter(enumerableConverter, wrapped);
         }
 
-        static IConvertsJintEvaluationResult GetTypeConverterConvertingService(IConvertsJintEvaluationResult wrapped) => new TypeConverterResultConverter(wrapped);
-
-        static IConvertsJintEvaluationResult GetNullConvertingService(IConvertsJintEvaluationResult wrapped) => new NullResultConverter(wrapped);
+        private static IConvertsJintEvaluationResult GetTypeConverterConvertingService(IConvertsJintEvaluationResult wrapped) => new TypeConverterResultConverter(wrapped);
+        private static IConvertsJintEvaluationResult GetNullConvertingService(IConvertsJintEvaluationResult wrapped) => new NullResultConverter(wrapped);
     }
 }

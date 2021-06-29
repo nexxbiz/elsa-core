@@ -358,7 +358,7 @@ export class ElsaWorkflowInstanceJournal {
                           <dt class="elsa-text-sm elsa-font-medium elsa-text-gray-500">
                             Exception Details
                           </dt>
-                          <dd class="elsa-mt-1 elsa-text-sm elsa-text-gray-900">
+                          <dd class="elsa-mt-1 elsa-text-sm elsa-text-gray-900 elsa-overflow-x-auto">
                             <pre onClick={e => clip(e.currentTarget)}>{JSON.stringify(exception, null, 1)}</pre>
                           </dd>
                         </div>]
@@ -366,7 +366,7 @@ export class ElsaWorkflowInstanceJournal {
                     {collection.map(filteredRecordData, (v, k) => (
                       <div class="sm:elsa-col-span-2">
                         <dt class="elsa-text-sm elsa-font-medium elsa-text-gray-500 elsa-capitalize">{k}</dt>
-                        <dd class="elsa-mt-1 elsa-text-sm elsa-text-gray-900 elsa-mb-2 elsa-overflow-x-scroll">
+                        <dd class="elsa-mt-1 elsa-text-sm elsa-text-gray-900 elsa-mb-2 elsa-overflow-x-auto">
                           <pre onClick={e => clip(e.currentTarget)}>{v}</pre>
                         </dd>
                       </div>
@@ -395,10 +395,13 @@ export class ElsaWorkflowInstanceJournal {
 
     if (!activityModel)
       return <p>No activity selected</p>;
+    
+    // Hide expressions field from properties so that we only display the evaluated value.
+    const model = {...activityModel, properties: activityModel.properties.map(x => ({ name: x.name, value: x.value }))}
 
     return (
       <div>
-        <pre>{JSON.stringify(activityModel, null, 2)}</pre>
+        <pre>{JSON.stringify(model, null, 2)}</pre>
       </div>
     );
   };

@@ -107,6 +107,10 @@ export class ElsaWorkflowInstanceListScreen {
         }
     }
 
+    updateSelectAllChecked(){
+        this.selectAllChecked = this.workflowInstances.items.findIndex(x => this.selectedWorkflowInstanceIds.findIndex(id => id == x.id) < 0) < 0;
+    }
+
     async routeChanged(e: LocationSegments) {
 
         if (e.pathname.toLowerCase().indexOf('workflow-instances') < 0)
@@ -136,7 +140,7 @@ export class ElsaWorkflowInstanceListScreen {
         else
             this.selectedWorkflowInstanceIds = this.selectedWorkflowInstanceIds.filter(x => x != workflowInstance.id);
 
-        this.selectAllChecked = this.workflowInstances.items.findIndex(x => this.selectedWorkflowInstanceIds.findIndex(id => id == x.id) < 0) < 0;
+        this.updateSelectAllChecked();
     }
 
     async onDeleteClick(e: Event, workflowInstance: WorkflowInstanceSummary) {
@@ -158,7 +162,10 @@ export class ElsaWorkflowInstanceListScreen {
 
         const elsaClient = this.createClient();
         await elsaClient.workflowInstancesApi.bulkDelete({workflowInstanceIds: this.selectedWorkflowInstanceIds});
+        this.selectedWorkflowInstanceIds = [];
+        this.updateSelectAllChecked();
         await this.loadWorkflowInstances();
+        this.page = 0;
     }
 
     async onBulkActionSelected(e: CustomEvent<DropdownButtonItem>) {
@@ -307,15 +314,15 @@ export class ElsaWorkflowInstanceListScreen {
                                         {!!workflowInstance.correlationId ? workflowInstance.correlationId : ''}
                                     </td>
                                     <td class="elsa-px-6 elsa-py-3 elsa-whitespace-no-wrap elsa-text-sm elsa-leading-5 elsa-font-medium elsa-text-gray-900 elsa-text-left">
-                                        <a href={`/workflow-registry/${workflowInstance.definitionId}/viewer`} class="elsa-truncate hover:elsa-text-gray-600">
+                                        <stencil-route-link url={`/workflow-registry/${workflowInstance.definitionId}`} anchorClass="elsa-truncate hover:elsa-text-gray-600">
                                             {displayName}
-                                        </a>
+                                        </stencil-route-link>
                                     </td>
                                     <td class="hidden md:elsa-table-cell elsa-px-6 elsa-py-3 elsa-whitespace-no-wrap elsa-text-right elsa-text-sm elsa-leading-5 elsa-text-gray-500 elsa-uppercase">
                                         {workflowInstance.version}
                                     </td>
                                     <td class="elsa-px-6 elsa-py-3 elsa-whitespace-no-wrap elsa-text-sm elsa-leading-5 elsa-font-medium elsa-text-gray-900 elsa-text-left">
-                                        <stencil-route-link url={`"@($" workflow-registry/{workflowInstance.definitionId}/viewer")"`} anchorClass="elsa-truncate hover:elsa-text-gray-600">{instanceName}</stencil-route-link>
+                                        <stencil-route-link url={viewUrl} anchorClass="elsa-truncate hover:elsa-text-gray-600">{instanceName}</stencil-route-link>
                                     </td>
                                     <td class="hidden md:elsa-table-cell elsa-px-6 elsa-py-3 elsa-whitespace-no-wrap elsa-text-sm elsa-leading-5 elsa-text-gray-500 elsa-text-right">
                                         <div class="elsa-flex elsa-items-center elsa-space-x-3 lg:elsa-pl-2">
