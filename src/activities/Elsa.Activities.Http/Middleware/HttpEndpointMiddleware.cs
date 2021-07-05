@@ -115,10 +115,11 @@ namespace Elsa.Activities.Http.Middleware
             else
             {
                 await workflowLaunchpad.ExecutePendingWorkflowAsync(pendingWorkflow, inputModel, cancellationToken);
-                
-                pendingWorkflowInstance = await workflowInstanceStore.FindByIdAsync(pendingWorkflow.WorkflowInstanceId);
+                    pendingWorkflowInstance = await workflowInstanceStore.FindByIdAsync(pendingWorkflow.WorkflowInstanceId);
+
                 if (pendingWorkflowInstance is not null
-                    && pendingWorkflowInstance.WorkflowStatus == Elsa.Models.WorkflowStatus.Faulted)
+                    && pendingWorkflowInstance.WorkflowStatus == Elsa.Models.WorkflowStatus.Faulted
+                    && !httpContext.Response.HasStarted)
                 {
                     httpContext.Response.ContentType = "application/json";
                     httpContext.Response.StatusCode = (int)HttpStatusCode.InternalServerError;
@@ -133,6 +134,7 @@ namespace Elsa.Activities.Http.Middleware
                             instanceId = pendingWorkflowInstance.Id
                         }
                     });
+
                     await httpContext.Response.WriteAsync(faultedResponse, cancellationToken);
                 }
             }
