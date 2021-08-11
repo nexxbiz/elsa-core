@@ -1,9 +1,10 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace Elsa.Services.Bookmarks
+namespace Elsa.Services
 {
     public abstract class BookmarkProvider<T> : IBookmarkProvider where T : IBookmark
     {
@@ -20,7 +21,7 @@ namespace Elsa.Services.Bookmarks
             var isSupported = await SupportsActivityAsync(context, cancellationToken);
 
             if (!isSupported)
-                return new BookmarkResult[0];
+                return Array.Empty<BookmarkResult>();
 
             return await GetBookmarksAsync(context, cancellationToken);
         }
@@ -44,7 +45,7 @@ namespace Elsa.Services.Bookmarks
             var isSupported = await SupportsActivityAsync(specializedContext, cancellationToken);
 
             if (!isSupported)
-                return new BookmarkResult[0];
+                return Array.Empty<BookmarkResult>();
 
             return await GetBookmarksAsync(specializedContext, cancellationToken);
         }

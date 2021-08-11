@@ -1,10 +1,11 @@
-using System.Threading;
-using System.Threading.Tasks;
 using Elsa.Server.Api.ActionFilters;
 using Elsa.Services;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Swashbuckle.AspNetCore.Annotations;
+using System.Threading;
+using System.Threading.Tasks;
+using Elsa.Models;
 
 namespace Elsa.Server.Api.Endpoints.Workflows
 {
@@ -15,10 +16,12 @@ namespace Elsa.Server.Api.Endpoints.Workflows
     public class Execute : Controller
     {
         private readonly IWorkflowLaunchpad _workflowLaunchpad;
+        private readonly ITenantAccessor _tenantAccessor;
 
-        public Execute(IWorkflowLaunchpad workflowLaunchpad)
+        public Execute(IWorkflowLaunchpad workflowLaunchpad, ITenantAccessor tenantAccessor)
         {
             _workflowLaunchpad = workflowLaunchpad;
+            _tenantAccessor = tenantAccessor;
         }
 
         [HttpPost]
@@ -33,12 +36,13 @@ namespace Elsa.Server.Api.Endpoints.Workflows
         ]
         public async Task<IActionResult> Handle(string workflowDefinitionId, ExecuteWorkflowDefinitionRequestModel request, CancellationToken cancellationToken = default)
         {
-            var startableWorkflow = await _workflowLaunchpad.CollectStartableWorkflowAsync(workflowDefinitionId, request.ActivityId, request.CorrelationId, request.ContextId, default, cancellationToken);
+            var tenantId = await _tenantAccessor.GetTenantIdAsync(cancellationToken);
+            var startableWorkflow = await _workflowLaunchpad.FindStartableWorkflowAsync(workflowDefinitionId, request.ActivityId, request.CorrelationId, request.ContextId, tenantId, cancellationToken);
 
             if (startableWorkflow == null)
                 return NotFound();
 
-            var result = await _workflowLaunchpad.ExecuteStartableWorkflowAsync(startableWorkflow, request.Input, cancellationToken);
+            var result = await _workflowLaunchpad.ExecuteStartableWorkflowAsync(startableWorkflow, new WorkflowInput(request.Input), cancellationToken);
 
             if (Response.HasStarted)
                 return new EmptyResult();

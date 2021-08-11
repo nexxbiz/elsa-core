@@ -20,16 +20,29 @@ namespace Elsa.Handlers
             // Check to see if a suspension / completion has been instructed. If so, do nothing.
             if (workflowExecutionContext.HasScheduledActivities || workflowExecutionContext.Status != WorkflowStatus.Running)
                 return Task.CompletedTask;
-            
+
             // Check if we are within a scope.
-            if(!workflowExecutionContext.WorkflowInstance.Scopes.Any())
+            if (!workflowExecutionContext.WorkflowInstance.Scopes.Any())
                 return Task.CompletedTask;
 
+            // Select the scope that is within the activity's inbound trajectory. Include current activity for consideration (it might itself be a scope).
+            var activityId = activityExecutionContext.ActivityId;
+            var inboundActivityIds = new[] { activityId }.Concat(workflowExecutionContext.GetInboundActivityPath(activityId)).ToHashSet();
+            var workflowInstance = workflowExecutionContext.WorkflowInstance;
+            var scopes = workflowInstance.Scopes;
+            var scope = scopes.FirstOrDefault(x => inboundActivityIds.Contains(x.ActivityId));
+
+            if (scope == null)
+            {
+                // Not scope in scope.
+                return Task.CompletedTask;
+            }
+
             // Re-schedule the current scope activity.
-            var scope = workflowExecutionContext.WorkflowInstance.Scopes.Pop();
-            workflowExecutionContext.WorkflowInstance.ActivityData.GetItem(scope.ActivityId)!.SetState("Unwinding", true);
+            scopes.Remove(scope);
+            workflowInstance.ActivityData.GetItem(scope.ActivityId)!.SetState("Unwinding", true);
             workflowExecutionContext.ScheduleActivity(scope.ActivityId);
-            
+
             return Task.CompletedTask;
         }
     }

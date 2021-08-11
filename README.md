@@ -32,8 +32,7 @@ dotnet new console -n "MyConsoleApp"
 
 cd MyConsoleApp
 
-dotnet add package Elsa --prerelease
-dotnet add package Elsa.Activities.Console --prerelease
+dotnet add package Elsa
 ```
 
 Create a new file called `HelloWorldWorkflow.cs` and add the following:
@@ -96,7 +95,7 @@ Check out the [Quickstart guides](https://elsa-workflows.github.io/elsa-core/doc
 A quick and easy way to give Elsa a spin is to run the following Docker command:
 
 ```bash
-docker run -t -i -e ELSA__HTTP__BASEURL='http://localhost:13000' -p 13000:80 elsaworkflows/elsa-dashboard-and-server:latest
+docker run -t -i -e ELSA__SERVER__BASEURL='http://localhost:13000' -p 13000:80 elsaworkflows/elsa-dashboard-and-server:latest
 ```
 
 Then navigate to http://localhost:13000.
@@ -146,16 +145,23 @@ Version 2.0
 - [x] Distributed Hosting Support (support for multi-node environments)
 - [x] Persistence: MongoDB, YesSQL, Entity Framework Core (SQL Server, SQLLite, PostgreSql)
 - [x] New Workflow Designer + Dashboard
-- [ ] Generic Command & Event Activities
-
-Version 3.0
-- [ ] Composite Activity Definitions (with designer support)
-- [ ] Job Activities (simplify starting background processes while the workflow sleeps & gets resumed once the job finishes)
-- [ ] Lucene Indexing
-- [ ] Localization Support
-- [ ] State Machines
+- [x] Generic Command & Event Activities
+- [x] State Machines
+- [ ] Test Workflows from Designer
+- [ ] Debug Workflows from Designer
 - [ ] Sagas
+- [ ] Localization Support
+- [ ] Lucene Indexing
 
+Version 3.0 (engine redesign)
+
+- [ ] Programming model similar to WF
+- [ ] Sequential Workflows
+- [ ] Flowchart Workflows
+- [ ] State Machine Workflows
+- [ ] Sagas
+- [ ] BPMS Workflows
+- [ ] Actor Model for Distributed Workflows
 
 ## Workflow Designer
 
