@@ -70,8 +70,9 @@ namespace Elsa.Services.Models
         public bool IsSingleton { get; set; }
         public bool IsPublished { get; set; }
         public bool IsLatest { get; set; }
+        public bool IsDisabled { get; set; }
         public string? Tag { get; set; }
-        
+
         /// <summary>
         /// The channel, or queue, to place workflow instances of this workflow blueprint in. Channels can be used by the workflow dispatcher to prioritize workflows. 
         /// </summary>

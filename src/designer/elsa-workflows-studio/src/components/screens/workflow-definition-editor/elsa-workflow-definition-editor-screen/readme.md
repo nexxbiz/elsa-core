@@ -7,12 +7,13 @@
 
 ## Properties
 
-| Property               | Attribute                | Description | Type     | Default     |
-| ---------------------- | ------------------------ | ----------- | -------- | ----------- |
-| `culture`              | `culture`                |             | `string` | `undefined` |
-| `monacoLibPath`        | `monaco-lib-path`        |             | `string` | `undefined` |
-| `serverUrl`            | `server-url`             |             | `string` | `undefined` |
-| `workflowDefinitionId` | `workflow-definition-id` |             | `string` | `undefined` |
+| Property               | Attribute                | Description | Type            | Default     |
+| ---------------------- | ------------------------ | ----------- | --------------- | ----------- |
+| `culture`              | `culture`                |             | `string`        | `undefined` |
+| `history`              | --                       |             | `RouterHistory` | `undefined` |
+| `monacoLibPath`        | `monaco-lib-path`        |             | `string`        | `undefined` |
+| `serverUrl`            | `server-url`             |             | `string`        | `undefined` |
+| `workflowDefinitionId` | `workflow-definition-id` |             | `string`        | `undefined` |
 
 
 ## Events
@@ -78,7 +79,13 @@ Type: `Promise<void>`
 - [elsa-workflow-definition-editor-notifications](../elsa-workflow-definition-editor-notifications)
 - [elsa-activity-picker-modal](../elsa-activity-picker-modal)
 - [elsa-activity-editor-modal](../elsa-activity-editor-modal)
+- [elsa-modal-dialog](../../../shared/elsa-modal-dialog)
 - [elsa-workflow-publish-button](../elsa-workflow-publish-button)
+- [elsa-flyout-panel](../../../shared/elsa-flyout-panel)
+- [elsa-tab-header](../../../shared/elsa-tab-header)
+- [elsa-tab-content](../../../shared/elsa-tab-content)
+- [elsa-workflow-properties-panel](../elsa-workflow-properties-panel)
+- [elsa-workflow-test-panel](../elsa-workflow-test-panel)
 - context-consumer
 
 ### Graph
@@ -89,7 +96,13 @@ graph TD;
   elsa-workflow-definition-editor-screen --> elsa-workflow-definition-editor-notifications
   elsa-workflow-definition-editor-screen --> elsa-activity-picker-modal
   elsa-workflow-definition-editor-screen --> elsa-activity-editor-modal
+  elsa-workflow-definition-editor-screen --> elsa-modal-dialog
   elsa-workflow-definition-editor-screen --> elsa-workflow-publish-button
+  elsa-workflow-definition-editor-screen --> elsa-flyout-panel
+  elsa-workflow-definition-editor-screen --> elsa-tab-header
+  elsa-workflow-definition-editor-screen --> elsa-tab-content
+  elsa-workflow-definition-editor-screen --> elsa-workflow-properties-panel
+  elsa-workflow-definition-editor-screen --> elsa-workflow-test-panel
   elsa-workflow-definition-editor-screen --> context-consumer
   elsa-workflow-settings-modal --> elsa-modal-dialog
   elsa-workflow-settings-modal --> elsa-monaco
@@ -97,6 +110,8 @@ graph TD;
   elsa-activity-editor-modal --> elsa-modal-dialog
   elsa-activity-editor-modal --> elsa-control
   elsa-workflow-publish-button --> context-consumer
+  elsa-workflow-properties-panel --> context-consumer
+  elsa-workflow-test-panel --> context-consumer
   elsa-studio-workflow-definitions-edit --> elsa-workflow-definition-editor-screen
   style elsa-workflow-definition-editor-screen fill:#f9f,stroke:#333,stroke-width:4px
 ```

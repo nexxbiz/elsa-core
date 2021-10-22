@@ -1,4 +1,9 @@
 using System.Collections.Generic;
+using Elsa.Caching.Rebus.Extensions;
+using Elsa.Rebus.AzureServiceBus;
+using Elsa.Retention.Extensions;
+using Elsa.Server.Api.Extensions;
+using Elsa.Server.Api.Hubs;
 using Elsa.Server.Hangfire.Extensions;
 using Hangfire;
 using Microsoft.AspNetCore.Builder;
@@ -39,6 +44,7 @@ namespace Elsa.Samples.Server.Host
                 typeof(Elsa.Activities.Temporal.Hangfire.Startup),
                 typeof(Elsa.Activities.Email.Startup),
                 typeof(Elsa.Activities.Telnyx.Startup),
+                typeof(Elsa.Activities.File.Startup),
                 typeof(Persistence.EntityFramework.Sqlite.Startup),
                 typeof(Persistence.EntityFramework.SqlServer.Startup),
                 typeof(Persistence.EntityFramework.MySql.Startup),
@@ -60,6 +66,15 @@ namespace Elsa.Samples.Server.Host
                 typeof(Webhooks.Persistence.YesSql.SqlServerStartup),
                 typeof(Webhooks.Persistence.YesSql.MySqlStartup),
                 typeof(Webhooks.Persistence.YesSql.PostgreSqlStartup),
+                typeof(WorkflowSettings.Persistence.EntityFramework.Sqlite.Startup),
+                typeof(WorkflowSettings.Persistence.EntityFramework.SqlServer.Startup),
+                typeof(WorkflowSettings.Persistence.EntityFramework.MySql.Startup),
+                typeof(WorkflowSettings.Persistence.EntityFramework.PostgreSql.Startup),
+                typeof(WorkflowSettings.Persistence.MongoDb.Startup),
+                typeof(WorkflowSettings.Persistence.YesSql.SqliteStartup),
+                typeof(WorkflowSettings.Persistence.YesSql.SqlServerStartup),
+                typeof(WorkflowSettings.Persistence.YesSql.MySqlStartup),
+                typeof(WorkflowSettings.Persistence.YesSql.PostgreSqlStartup),
             };
 
             services
@@ -68,7 +83,8 @@ namespace Elsa.Samples.Server.Host
                     .AddWorkflowsFrom<Startup>()
                     .AddFeatures(startups, Configuration)
                     .ConfigureWorkflowChannels(options => elsaSection.GetSection("WorkflowChannels").Bind(options))
-                );
+                )
+                .AddRetentionServices(options => elsaSection.GetSection("Retention").Bind(options));
             
             // Elsa API endpoints.
             services
@@ -90,10 +106,17 @@ namespace Elsa.Samples.Server.Host
             }
 
             app
-                .UseCors()
+                .UseCors(cors => cors
+                    .AllowAnyHeader()
+                    .AllowAnyMethod()
+                    .SetIsOriginAllowed(_ => true)
+                    .AllowCredentials())
                 .UseElsaFeatures()
                 .UseRouting()
-                .UseEndpoints(endpoints => { endpoints.MapControllers(); });
+                .UseEndpoints(endpoints => { 
+                    endpoints.MapControllers();
+                })
+                .MapWorkflowTestHub();
         }
     }
 }

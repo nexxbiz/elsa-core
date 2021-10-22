@@ -14,7 +14,9 @@ using Elsa.Models;
 using Elsa.Persistence;
 using Elsa.Services;
 using Elsa.Services.Models;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using Newtonsoft.Json;
 using Open.Linq.AsyncExtensions;
@@ -39,27 +41,15 @@ namespace Elsa.Activities.Http.Middleware
             IEnumerable<IHttpRequestBodyParser> contentParsers)
         {
             var basePath = options.Value.BasePath;
+            var path = GetPath(basePath, httpContext);
+
+            if (path == null)
+            {
+                await _next(httpContext);
+                return;
+            }
+
             var request = httpContext.Request;
-
-            string path;
-            
-            // If a base path was configured, try to match against that first.
-            if (basePath != null)
-            {
-                // If no match, continue with the next middleware in the pipeline.
-                if (!request.Path.StartsWithSegments(basePath.Value, out _, out var remainingPath))
-                {
-                    await _next(httpContext);
-                    return;
-                }
-
-                path = remainingPath.Value.ToLowerInvariant();
-            }
-            else
-            {
-                path = httpContext.Request.Path.Value.ToLowerInvariant();
-            }
-
             var cancellationToken = CancellationToken.None; // Prevent half-way request abortion (which also happens when WriteHttpResponse writes to the response).
             var method = httpContext.Request.Method!.ToLowerInvariant();
 
@@ -70,45 +60,26 @@ namespace Elsa.Activities.Http.Middleware
             var collectWorkflowsContext = new WorkflowsQuery(activityType, bookmark, correlationId, default, default, TenantId);
             var pendingWorkflows = await workflowLaunchpad.FindWorkflowsAsync(collectWorkflowsContext, cancellationToken).ToList();
 
-            if (!pendingWorkflows.Any())
-            {
-                // If a base path was configured, we are sure the requester tried to execute a workflow that doesn't exist.
-                // Therefore, sending a 404 response seems appropriate instead of continuing with any subsequent middlewares.
-                if (basePath != null)
-                {
-                    httpContext.Response.StatusCode = (int)HttpStatusCode.NotFound;
-                    return;
-                }
-                
-                // If no base path was configured on the other hand, the request could be targeting anything else and should be handled by subsequent middlewares. 
-                await _next(httpContext);
+            if (await HandleNoWorkflowsFoundAsync(httpContext, pendingWorkflows, basePath))
                 return;
-            }
 
-            if (pendingWorkflows.Count > 1)
-            {
-                httpContext.Response.ContentType = "application/json";
-                httpContext.Response.StatusCode = (int) HttpStatusCode.InternalServerError;
-
-                var responseContent = JsonConvert.SerializeObject(new
-                {
-                    errorMessage = "The call is ambiguous and matches multiple workflows.",
-                    workflows = pendingWorkflows
-                });
-
-                await httpContext.Response.WriteAsync(responseContent, cancellationToken);
+            if (await HandleMultipleWorkflowsFoundAsync(httpContext, pendingWorkflows, cancellationToken))
                 return;
-            }
 
             var pendingWorkflow = pendingWorkflows.Single();
             var pendingWorkflowInstance = await workflowInstanceStore.FindByIdAsync(pendingWorkflow.WorkflowInstanceId, cancellationToken);
+
             if (pendingWorkflowInstance is null)
             {
                 await _next(httpContext);
                 return;
             }
 
-            var workflowBlueprint = await workflowRegistry.FindAsync(x => x.IsPublished && x.Id == pendingWorkflowInstance.DefinitionId, cancellationToken);
+            var isTest = pendingWorkflowInstance.GetMetadata("isTest");
+            var workflowBlueprint = (isTest != null && Convert.ToBoolean(isTest)) ?
+                await workflowRegistry.FindAsync(x => x.Id == pendingWorkflowInstance.DefinitionId, cancellationToken) :
+                await workflowRegistry.FindAsync(x => x.IsPublished && x.Id == pendingWorkflowInstance.DefinitionId && !x.IsDisabled, cancellationToken);
+
             if (workflowBlueprint is null)
             {
                 await _next(httpContext);
@@ -116,6 +87,19 @@ namespace Elsa.Activities.Http.Middleware
             }
 
             var workflowBlueprintWrapper = await workflowBlueprintReflector.ReflectAsync(httpContext.RequestServices, workflowBlueprint, cancellationToken);
+            var orderedContentParsers = contentParsers.OrderByDescending(x => x.Priority).ToList();
+            var simpleContentType = request.ContentType?.Split(';').First();
+            var contentParser = orderedContentParsers.FirstOrDefault(x => x.SupportedContentTypes.Contains(simpleContentType, StringComparer.OrdinalIgnoreCase)) ?? orderedContentParsers.LastOrDefault() ?? new DefaultHttpRequestBodyParser();
+            var activityWrapper = workflowBlueprintWrapper.GetUnfilteredActivity<HttpEndpoint>(pendingWorkflow.ActivityId!)!;
+
+            if (!await AuthorizeAsync(httpContext, options.Value, activityWrapper, workflowBlueprint, pendingWorkflow, cancellationToken))
+            {
+                httpContext.Response.StatusCode = (int)HttpStatusCode.Unauthorized;
+                return;
+            }
+
+            var readContent = await activityWrapper.EvaluatePropertyValueAsync(x => x.ReadContent, cancellationToken);
+
             var inputModel = new HttpRequestModel(
                 request.Path.ToString(),
                 request.Method,
@@ -123,17 +107,14 @@ namespace Elsa.Activities.Http.Middleware
                 request.Headers.ToDictionary(x => x.Key, x => x.Value.ToString())
             );
 
-            var orderedContentParsers = contentParsers.OrderByDescending(x => x.Priority).ToList();
-            var simpleContentType = request.ContentType?.Split(';').First();
-            var contentParser = orderedContentParsers.FirstOrDefault(x => x.SupportedContentTypes.Contains(simpleContentType, StringComparer.OrdinalIgnoreCase)) ?? orderedContentParsers.LastOrDefault() ?? new DefaultHttpRequestBodyParser();
-
-            var activityWrapper = workflowBlueprintWrapper.GetUnfilteredActivity<HttpEndpoint>(pendingWorkflow.ActivityId!);
-            var readContent = await activityWrapper!.EvaluatePropertyValueAsync(x => x.ReadContent, cancellationToken);
-
             if (readContent)
             {
                 var targetType = await activityWrapper.EvaluatePropertyValueAsync(x => x.TargetType, cancellationToken);
-                inputModel = inputModel with { Body = await contentParser.ParseAsync(request, targetType, cancellationToken) };
+                inputModel = inputModel with
+                {
+                    RawBody = await request.ReadContentAsStringAsync(cancellationToken),
+                    Body = await contentParser.ParseAsync(request, targetType, cancellationToken)
+                };
             }
 
             var useDispatch = httpContext.Request.GetUseDispatch();
@@ -142,7 +123,7 @@ namespace Elsa.Activities.Http.Middleware
                 await workflowLaunchpad.DispatchPendingWorkflowAsync(pendingWorkflow, new WorkflowInput(inputModel), cancellationToken);
 
                 httpContext.Response.ContentType = "application/json";
-                httpContext.Response.StatusCode = (int) HttpStatusCode.Accepted;
+                httpContext.Response.StatusCode = (int)HttpStatusCode.Accepted;
                 await httpContext.Response.WriteAsync(JsonConvert.SerializeObject(pendingWorkflows), cancellationToken);
             }
             else
@@ -151,15 +132,16 @@ namespace Elsa.Activities.Http.Middleware
                 pendingWorkflowInstance = await workflowInstanceStore.FindByIdAsync(pendingWorkflow.WorkflowInstanceId, cancellationToken);
 
                 if (pendingWorkflowInstance is not null
-                    && pendingWorkflowInstance.WorkflowStatus == Elsa.Models.WorkflowStatus.Faulted
+                    && pendingWorkflowInstance.WorkflowStatus == WorkflowStatus.Faulted
                     && !httpContext.Response.HasStarted)
                 {
                     httpContext.Response.ContentType = "application/json";
-                    httpContext.Response.StatusCode = (int) HttpStatusCode.InternalServerError;
+                    httpContext.Response.StatusCode = (int)HttpStatusCode.InternalServerError;
 
                     var faultedResponse = JsonConvert.SerializeObject(new
                     {
                         errorMessage = $"Workflow faulted at {pendingWorkflowInstance.FaultedAt!} with error: {pendingWorkflowInstance.Fault!.Message}",
+                        exception = pendingWorkflowInstance.Fault?.Exception,
                         workflow = new
                         {
                             name = pendingWorkflowInstance.Name,
@@ -172,5 +154,64 @@ namespace Elsa.Activities.Http.Middleware
                 }
             }
         }
+
+        private async Task<bool> AuthorizeAsync(
+            HttpContext httpContext,
+            HttpActivityOptions options,
+            IActivityBlueprintWrapper<HttpEndpoint> httpEndpoint,
+            IWorkflowBlueprint workflowBlueprint,
+            CollectedWorkflow pendingWorkflow,
+            CancellationToken cancellationToken)
+        {
+            var authorize = await httpEndpoint.EvaluatePropertyValueAsync(x => x.Authorize, cancellationToken);
+
+            if (!authorize)
+                return true;
+
+            var authorizationHandler = options.HttpEndpointAuthorizationHandlerFactory(httpContext.RequestServices);
+            
+            return await authorizationHandler.AuthorizeAsync(new AuthorizeHttpEndpointContext(httpContext, httpEndpoint, workflowBlueprint, pendingWorkflow.WorkflowInstanceId, cancellationToken));
+        }
+
+        private async Task<bool> HandleNoWorkflowsFoundAsync(HttpContext httpContext, IList<CollectedWorkflow> pendingWorkflows, PathString? basePath)
+        {
+            if (pendingWorkflows.Any())
+                return false;
+
+            // If a base path was configured, we are sure the requester tried to execute a workflow that doesn't exist.
+            // Therefore, sending a 404 response seems appropriate instead of continuing with any subsequent middlewares.
+            if (basePath != null)
+            {
+                httpContext.Response.StatusCode = (int)HttpStatusCode.NotFound;
+                return true;
+            }
+
+            // If no base path was configured on the other hand, the request could be targeting anything else and should be handled by subsequent middlewares. 
+            await _next(httpContext);
+
+            return true;
+        }
+
+        private async Task<bool> HandleMultipleWorkflowsFoundAsync(HttpContext httpContext, IList<CollectedWorkflow> pendingWorkflows, CancellationToken cancellationToken)
+        {
+            if (pendingWorkflows.Count <= 1)
+                return false;
+
+            httpContext.Response.ContentType = "application/json";
+            httpContext.Response.StatusCode = (int)HttpStatusCode.InternalServerError;
+
+            var responseContent = JsonConvert.SerializeObject(new
+            {
+                errorMessage = "The call is ambiguous and matches multiple workflows.",
+                workflows = pendingWorkflows
+            });
+
+            await httpContext.Response.WriteAsync(responseContent, cancellationToken);
+            return true;
+        }
+
+        private string? GetPath(PathString? basePath, HttpContext httpContext) => basePath != null
+            ? httpContext.Request.Path.StartsWithSegments(basePath.Value, out _, out var remainingPath) ? remainingPath.Value.ToLowerInvariant() : null
+            : httpContext.Request.Path.Value.ToLowerInvariant();
     }
 }

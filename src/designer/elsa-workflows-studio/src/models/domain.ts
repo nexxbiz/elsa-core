@@ -87,6 +87,7 @@ export interface WorkflowBlueprintSummary {
   isSingleton: boolean;
   isPublished: boolean;
   isLatest: boolean;
+  isDisabled: boolean;
   tag?: string;
 }
 
@@ -320,6 +321,18 @@ export class SyntaxNames {
   static readonly Json = 'Json';
   static Variable = 'Variable';
   static Output = 'Output';
+}
+
+export interface WorkflowTestActivityMessage {
+  activityType: string;
+  workflowInstanceId: string;
+  correlationId: string;
+  activityId: string;
+  status: string;
+  workflowStatus: string;
+  data?: any;
+  error?: string;
+  activityData?: any;
 }
 
 export const getVersionOptionsString = (versionOptions?: VersionOptions) => {

@@ -1,4 +1,4 @@
-import {Component, h, Host, Method, Prop, State, Watch} from '@stencil/core';
+import {Component, h, Host, Listen, Method, Prop, State, Watch} from '@stencil/core';
 import {eventBus} from '../../../../services/event-bus';
 import * as collection from 'lodash/collection';
 import {
@@ -22,7 +22,6 @@ import {
 import {ActivityStats, createElsaClient} from "../../../../services/elsa-client";
 import state from '../../../../utils/store';
 import {ActivityContextMenuState, WorkflowDesignerMode} from "../../../designers/tree/elsa-designer-tree/models";
-import {registerClickOutside} from "stencil-click-outside";
 import moment from "moment";
 import {clip, durationToString} from "../../../../utils/utils";
 import Tunnel from "../../../../data/dashboard";
@@ -52,6 +51,7 @@ export class ElsaWorkflowInstanceViewerScreen {
   el: HTMLElement;
   designer: HTMLElsaDesignerTreeElement;
   journal: HTMLElsaWorkflowInstanceJournalElement;
+  contextMenu: HTMLElement;
 
   @Method()
   async getServerUrl(): Promise<string> {
@@ -93,7 +93,7 @@ export class ElsaWorkflowInstanceViewerScreen {
       propertyStorageProviders: {}
     };
 
-    const client = createElsaClient(this.serverUrl);
+    const client = await createElsaClient(this.serverUrl);
 
     if (workflowInstanceId && workflowInstanceId.length > 0) {
       try {
@@ -113,6 +113,14 @@ export class ElsaWorkflowInstanceViewerScreen {
       await this.loadActivityDescriptors();
   }
 
+  @Listen('click', {target: 'window'})
+  onWindowClicked(event: Event){
+    const target = event.target as HTMLElement;
+
+    if (!this.contextMenu.contains(target))
+      this.handleContextMenuChange(0, 0, false, null);
+  }
+
   async componentWillLoad() {
     await this.serverUrlChangedHandler(this.serverUrl);
     await this.workflowInstanceIdChangedHandler(this.workflowInstanceId);
@@ -126,7 +134,7 @@ export class ElsaWorkflowInstanceViewerScreen {
   }
 
   async loadActivityDescriptors() {
-    const client = createElsaClient(this.serverUrl);
+    const client = await createElsaClient(this.serverUrl);
     state.activityDescriptors = await client.activitiesApi.list();
   }
 
@@ -154,7 +162,7 @@ export class ElsaWorkflowInstanceViewerScreen {
 
     const properties: Array<ActivityDefinitionProperty> = collection.map(activityBlueprint.inputProperties.data, (value, key) => {
       const propertyDescriptor = activityDescriptor.inputProperties.find(x => x.name == key) || activityDescriptor.outputProperties.find(x => x.name == key);
-      const defaultSyntax = propertyDescriptor.defaultSyntax || SyntaxNames.Literal;
+      const defaultSyntax = propertyDescriptor?.defaultSyntax || SyntaxNames.Literal;
       const expressions = {};
       const v = activityData[key] || value;
       expressions[defaultSyntax] = v;
@@ -185,6 +193,7 @@ export class ElsaWorkflowInstanceViewerScreen {
   }
 
   handleContextMenuChange(x: number, y: number, shown: boolean, activity: ActivityModel) {
+    console.log('elsa-instance-view close');
     this.activityContextMenuState = {
       shown,
       x,
@@ -223,7 +232,7 @@ export class ElsaWorkflowInstanceViewerScreen {
       return;
     }
 
-    const elsaClient = createElsaClient(this.serverUrl);
+    const elsaClient = await createElsaClient(this.serverUrl);
     this.activityStats = await elsaClient.activityStatsApi.get(this.workflowInstanceId, e.detail.activity.activityId);
   }
 
@@ -234,6 +243,7 @@ export class ElsaWorkflowInstanceViewerScreen {
         {this.renderCanvas()}
         <elsa-workflow-instance-journal ref={el => this.journal = el}
                                         workflowInstanceId={this.workflowInstanceId}
+                                        workflowInstance={this.workflowInstance}
                                         serverUrl={this.serverUrl}
                                         activityDescriptors={descriptors}
                                         workflowBlueprint={this.workflowBlueprint}
@@ -281,14 +291,14 @@ export class ElsaWorkflowInstanceViewerScreen {
               </svg>`;
     } else if (executed) {
       icon = `<svg class="elsa-h-6 elsa-w-6 elsa-text-green-500"  viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <circle cx="12" cy="12" r="10" /> 
-                <line x1="12" y1="16" x2="12" y2="12" /> 
+                <circle cx="12" cy="12" r="10" />
+                <line x1="12" y1="16" x2="12" y2="12" />
                 <line x1="12" y1="8" x2="12.01" y2="8" />
               </svg>`;
     } else if (executing) {
       icon = `<svg class="elsa-h-6 elsa-w-6 elsa-text-blue-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <circle cx="12" cy="12" r="10" /> 
-                <line x1="12" y1="16" x2="12" y2="12" /> 
+                <circle cx="12" cy="12" r="10" />
+                <line x1="12" y1="16" x2="12" y2="12" />
                 <line x1="12" y1="8" x2="12.01" y2="8" />
               </svg>`;
     } else {
@@ -518,11 +528,7 @@ export class ElsaWorkflowInstanceViewerScreen {
       data-transition-leave-end="elsa-transform elsa-opacity-0 elsa-scale-95"
       class={`${this.activityContextMenuState.shown ? '' : 'hidden'} elsa-absolute elsa-z-10 elsa-mt-3 elsa-px-2 elsa-w-screen elsa-max-w-xl sm:elsa-px-0`}
       style={{left: `${this.activityContextMenuState.x + 64}px`, top: `${this.activityContextMenuState.y - 256}px`}}
-      ref={el =>
-        registerClickOutside(this, el, () => {
-          this.handleContextMenuChange(0, 0, false, null);
-        })
-      }
+      ref={el => this.contextMenu = el}
     >
       <div class="elsa-rounded-lg elsa-shadow-lg elsa-ring-1 elsa-ring-black elsa-ring-opacity-5 elsa-overflow-hidden">
         {!!activityStats ? renderStats() : renderLoader()}

@@ -1,5 +1,6 @@
 using System;
 using System.Data;
+using Elsa.Options;
 using Elsa.Persistence.YesSql.Data;
 using Elsa.Persistence.YesSql.Indexes;
 using Elsa.Persistence.YesSql.Mapping;
@@ -41,6 +42,7 @@ namespace Elsa.Persistence.YesSql
             return elsa
                 .UseWorkflowDefinitionStore(sp => sp.GetRequiredService<YesSqlWorkflowDefinitionStore>())
                 .UseWorkflowInstanceStore(sp => sp.GetRequiredService<YesSqlWorkflowInstanceStore>())
+                .UseWorkflowTriggerStore(sp => sp.GetRequiredService<YesSqlBookmarkStore>())
                 .UseWorkflowExecutionLogStore(sp => sp.GetRequiredService<YesSqlWorkflowExecutionLogStore>());
         }
 

@@ -1,8 +1,9 @@
-﻿using System;
+using System;
 using System.Linq.Expressions;
 using System.Threading;
 using System.Threading.Tasks;
 using Elsa.Models;
+using Elsa.Options;
 using Elsa.Persistence;
 using Elsa.Server.Hangfire.Jobs;
 using Elsa.Services;
@@ -40,7 +41,7 @@ namespace Elsa.Server.Hangfire.Dispatch
             }
 
             var channel = _workflowChannelOptions.GetChannelOrDefault(workflowBlueprint.Channel);
-            var queue = ElsaOptions.FormatChannelQueueName<ExecuteWorkflowDefinitionRequest>(channel);
+            var queue = ServiceBusOptions.FormatChannelQueueName<ExecuteWorkflowDefinitionRequest>(channel);
             EnqueueJob<WorkflowDefinitionJob>(x => x.ExecuteAsync(request, CancellationToken.None), queue);
         }
 
@@ -67,7 +68,7 @@ namespace Elsa.Server.Hangfire.Dispatch
             }
 
             var channel = _workflowChannelOptions.GetChannelOrDefault(workflowBlueprint.Channel);
-            var queue = ElsaOptions.FormatChannelQueueName<ExecuteWorkflowInstanceRequest>(channel);
+            var queue = ServiceBusOptions.FormatChannelQueueName<ExecuteWorkflowInstanceRequest>(channel);
             EnqueueJob<WorkflowInstanceJob>(x => x.ExecuteAsync(request, CancellationToken.None), queue);
         }
 

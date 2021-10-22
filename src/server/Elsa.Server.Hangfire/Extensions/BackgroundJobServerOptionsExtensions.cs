@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Linq;
+using Elsa.Options;
 using Elsa.Services;
 using Hangfire;
 using Microsoft.Extensions.DependencyInjection;
@@ -22,8 +23,8 @@ namespace Elsa.Server.Hangfire.Extensions
 
             foreach (var channel in channels)
             {
-                queues.Add(ElsaOptions.FormatChannelQueueName<ExecuteWorkflowDefinitionRequest>(channel));
-                queues.Add(ElsaOptions.FormatChannelQueueName<ExecuteWorkflowInstanceRequest>(channel));
+                queues.Add(ServiceBusOptions.FormatChannelQueueName<ExecuteWorkflowDefinitionRequest>(channel));
+                queues.Add(ServiceBusOptions.FormatChannelQueueName<ExecuteWorkflowInstanceRequest>(channel));
             }
 
             options.Queues = queues.ToArray();
